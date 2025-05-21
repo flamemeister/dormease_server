@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ subject }}</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 40px 0;
+    }
+    .email-container {
+      background-color: #ffffff;
+      max-width: 620px;
+      margin: 0 auto;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+    }
+    .header {
+      text-align: center;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 22px;
+      color: #2c3e50;
+    }
+    .subject-line {
+      text-align: center;
+      font-size: 16px;
+      color: #7f8c8d;
+      margin-bottom: 30px;
+    }
+    .message {
+      font-size: 16px;
+      color: #2c3e50;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      padding: 0 10px;
+    }
+    .footer {
+      margin-top: 40px;
+      font-size: 12px;
+      text-align: center;
+      color: #95a5a6;
+    }
+    .aitu-logo {
+      margin-top: 20px;
+      width: 120px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="header">
+      <h1>Ответ на ваше обращение</h1>
+    </div>
+    <div class="subject-line">
+      {{ subject }}
+    </div>
+
+    <div class="message">
+      {{ message }}
+    </div>
+
+    <div class="footer">
+      Если у вас возникли вопросы, пожалуйста, свяжитесь с администрацией общежития.<br>
+      Это письмо отправлено автоматически.<br>
+      <img src="https://aitu.edu.kz/wp-content/uploads/2020/03/AITU-1-1536x415.png" alt="AITU Logo" class="aitu-logo">
+    </div>
+  </div>
+</body>
+</html>

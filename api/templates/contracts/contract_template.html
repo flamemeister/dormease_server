@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+  <h1>Договор №{{ app.id }}</h1>
+  <p>Студент: {{ app.student.get_full_name }}</p>
+  <p>Дата подачи: {{ app.created_at|date:"d.m.Y" }}</p>
+</body>
+</html>

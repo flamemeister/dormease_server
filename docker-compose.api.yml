@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower
+    container_name: flower
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    command: >
+      celery -A core flower
+             --broker=redis://redis:6379/0
+             --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"   
+      - "9001:9001"   
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server --console-address ":9001" /data
+    volumes:
+      - ./minio_data:/data
+

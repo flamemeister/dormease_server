@@ -1,0 +1,26 @@
+# Python / Django
+*.pyc
+__pycache__/
+*.sqlite3
+.env
+*.log
+
+
+# Python virtualenv
+venv/
+.env/
+
+# Docker
+*.tar
+*.img
+docker-compose.override.yml
+
+# VSCode
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Migrations (опционально)
+**/migrations/

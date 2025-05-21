@@ -1,40 +1,49 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-import random
+
+from .storage_backends import MinioProfileImageStorage
 
 class UserManager(BaseUserManager):
-  def create_user(self, username, email, password=None, **extra_fields):
-    if not email:
-        raise ValueError('The Email field must be set')
-    email = self.normalize_email(email)
-    user = self.model(username=username, email=email, **extra_fields)
-    user.set_password(password)
-    user.save(using=self._db)
-    return user
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError('Email is required')
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
-  def create_superuser(self, username, email, password=None, **extra_fields):
-    extra_fields.setdefault('is_staff', True)
-    extra_fields.setdefault('is_superuser', True)
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        return self.create_user(email, password, **extra_fields)
 
-    return self.create_user(username, email, password, **extra_fields)
 
 class User(AbstractBaseUser, PermissionsMixin):
     ROLES = (
         ('admin', 'ADMIN'),
-        ('user', 'USER')
+        ('user', 'USER'),
+        ('aitusa', 'Aitusa Support'),
     )
 
-    username = models.CharField(max_length=30, unique=True)
+    GENDER_CHOICES = (
+        ('male', 'Мужской'),
+        ('female', 'Женский'),
+        ('other', 'Другое'),
+    )
+
     email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30)
     role = models.CharField(max_length=10, choices=ROLES, default='user')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
-    profile_image = models.IntegerField(default=random.randint(1, 10))  
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=False, blank=False, default='female')
 
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    REQUIRED_FIELDS = ['first_name', 'last_name']  
 
     groups = models.ManyToManyField(
         'auth.Group',
@@ -52,4 +61,22 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     def __str__(self):
-        return self.username
+        return f'{self.first_name} {self.last_name}'
+    
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    age = models.PositiveIntegerField(null=True, blank=True)
+    bio = models.TextField(blank=True, null=True)
+    profile_image = models.ImageField(
+        storage=MinioProfileImageStorage(),
+        upload_to='',
+        null=True,
+        blank=True
+    )
+    course = models.PositiveSmallIntegerField(null=True, blank=True)
+    group = models.CharField(max_length=20, blank=True, null=True)
+    roommate_preferences = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f'Профиль: {self.user.first_name} {self.user.last_name}'

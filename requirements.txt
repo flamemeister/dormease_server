@@ -1,3 +1,11 @@
 asgiref==3.8.1
 Django==5.2
 sqlparse==0.5.3
+celery
+flower
+drf-yasg
+django-filter
+django-storages
+boto3
+Pillow
+weasyprint

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Подписание договора</title>
+  <script src="https://unpkg.com/@seithq/ncalayer/dist/ncalayer.umd.min.js"></script>
+</head>
+<body>
+  <h2>Подпись договора</h2>
+  <button id="signBtn">📄 Подписать!!! договор</button>
+
+  <script>
+    const appId = {{ app_id }};
+
+    document.getElementById('signBtn').onclick = async () => {
+      const ws = new WebSocket("wss://127.0.0.1:13579/");
+
+      ws.onopen = async () => {
+        const client = new ncalayer.Client(ws); // ✅ работает
+
+        const contractRes = await fetch(`/api/applications/${appId}/contract-base64/`);
+        const contractJson = await contractRes.json();
+        const contractBase64 = contractJson.base64;
+
+        client.signBase64(contractBase64, "SIGNATURE", "", "CMS", async (result) => {
+          if (result.isOk()) {
+            const signedContent = result.getResponseObject();
+
+            await fetch(`/api/applications/${appId}/upload-signed/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ signed_content: signedContent })
+            });
+
+            alert("✅ Подпись успешно загружена!");
+          } else {
+            alert("❌ Ошибка при подписи: " + result.getErrorMessage());
+          }
+        });
+      };
+
+      ws.onerror = () => alert("❌ Не удалось подключиться к NCALayer. Убедитесь, что он запущен.");
+    };
+  </script>
+</body>
+</html>

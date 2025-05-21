@@ -1,19 +1,115 @@
 from django.db import models
+from django.conf import settings
+from .storage_backends import MinioDocumentStorage
 
+class DormitoryApplication(models.Model):
+    class Priority(models.IntegerChoices):
+        ORPHANS_DISABLED = 1, 'Дети-сироты, инвалиды 1/2 гр.'
+        FAMILY_DISABLED = 2, 'Инвалиды 3 гр., родители-инвалиды'
+        SERPIN = 3, 'Серпін 2050'
+        ALTYNBELGI_OLYMPIAD = 4, 'Алтын белгі, олимпиады'
+        HIGH_ENT = 5, 'Высокие баллы ЕНТ/КТ'
+        HIGH_GRADES = 6, 'Успевающие студенты'
+        OTHER = 7, 'Иные, включая иностранцев'
 
-class User():
-    ROLES = (
-        ('admin', 'ADMIN'),
-        ('user', 'USER')
+    GENDER_CHOICES = [
+        ('male', 'Мужской'),
+        ('female', 'Женский'),
+        ('other', 'Другое'),
+    ]
+
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='applications')
+    iin = models.CharField(max_length=12)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
+    city = models.CharField(max_length=100)
+    document = models.FileField(
+        storage=MinioDocumentStorage(),
+        upload_to='applications/documents/',
+        null=True,
+        blank=True
     )
-
-    username = models.CharField(max_length=30, unique=True)
-    email = models.EmailField(unique=True)
-    role = models.CharField(max_length=10, choices=ROLES, default='user')
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    profile_image = models.IntegerField(default=random.randint(1, 10))  
-
+    priority = models.PositiveSmallIntegerField(choices=Priority.choices)
+    status = models.CharField(max_length=20, choices=[
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('CANCELED', 'Canceled'),
+        ('EXPIRED', 'Expired'),
+    ], default='PENDING')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    admin_comment = models.TextField(blank=True, null=True)
+    pdf_contract = models.FileField(upload_to="contracts/", null=True, blank=True)
+    signed_contract = models.FileField(upload_to="signed_contracts/", null=True, blank=True)
 
     def __str__(self):
-        return self.username
+        return f"{self.student.email} - {self.get_priority_display()}"
+
+
+class NotificationLog(models.Model):
+    recipient = models.EmailField()
+    status = models.CharField(max_length=20)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=False)
+    error_message = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.status} to {self.recipient} at {self.sent_at}"
+
+class Building(models.Model):
+    name = models.CharField(max_length=100)
+    address = models.CharField(max_length=255)
+    floors = models.PositiveIntegerField()
+
+    def __str__(self):
+        return f"{self.name} ({self.address})"
+
+class Room(models.Model):
+    ROOM_TYPES = [
+        ('double', 'Double'),
+        ('triple', 'Triple'),
+    ]
+
+    GENDER_CHOICES = [
+        ('male', 'Только мальчики'),
+        ('female', 'Только девочки'),
+    ]
+
+    number = models.CharField(max_length=10)
+    room_type = models.CharField(max_length=10, choices=ROOM_TYPES)
+    capacity = models.PositiveIntegerField(default=1)
+    occupants = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='rooms')
+    floor = models.IntegerField()
+
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="rooms", null=False, blank=False)
+
+    gender_restriction = models.CharField(
+        max_length=10,
+        choices=GENDER_CHOICES  ,
+        default='female'      
+    )
+
+    def is_full(self):
+        return self.occupants.count() >= self.capacity
+
+    def __str__(self):
+        return f"Room {self.number} ({self.room_type})"
+    
+    class Meta:
+        unique_together = ('number', 'building')  
+        verbose_name = 'Room'
+        verbose_name_plural = 'Rooms'
+
+
+class SupportMessage(models.Model):
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='support_messages')
+    subject = models.CharField(max_length=255)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_answered = models.BooleanField(default=False)
+    answer = models.TextField(blank=True, null=True)
+    answered_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.subject} от {self.student.email}"
+
