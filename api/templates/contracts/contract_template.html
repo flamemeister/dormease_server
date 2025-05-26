@@ -1,9 +1,53 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: DejaVu Sans, sans-serif;
+      margin: 40px;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 40px;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .label {
+      font-weight: bold;
+    }
+  </style>
+</head>
 <body>
-  <h1>Договор №{{ app.id }}</h1>
-  <p>Студент: {{ app.student.get_full_name }}</p>
-  <p>Дата подачи: {{ app.created_at|date:"d.m.Y" }}</p>
+
+  <h1>Договор №{{ contract_id }}</h1>
+
+  <div class="section">
+    <p><span class="label">Студент:</span> {{ full_name }}</p>
+    <p><span class="label">ИИН:</span> {{ iin }}</p>
+    <p><span class="label">Email:</span> {{ email }}</p>
+    <p><span class="label">Город проживания:</span> {{ city }}</p>
+    <p><span class="label">Дата подачи заявки:</span> {{ submitted_date }}</p>
+  </div>
+
+  <div class="section">
+    <p>Настоящий договор регулирует условия проживания студента в общежитии Astana IT University.</p>
+    <p>Студент обязуется соблюдать правила внутреннего распорядка, обеспечивать сохранность имущества и соблюдать тишину.</p>
+    <p>Университет предоставляет студенту место проживания сроком на учебный год с возможностью продления по результатам рассмотрения.</p>
+  </div>
+
+  <div class="section">
+    <p><span class="label">Дата составления договора:</span> {{ submitted_date }}</p>
+  </div>
+
+  <div class="section">
+    <p>Подписи сторон:</p>
+    <p>_________________________ (Студент)</p>
+    <p>_________________________ (Представитель университета)</p>
+  </div>
+
 </body>
 </html>

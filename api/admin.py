@@ -8,6 +8,7 @@ class DormitoryApplicationAdmin(admin.ModelAdmin):
     search_fields = ('student__email', 'student__first_name', 'student__last_name')
     readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ['student']
+    
 
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
@@ -15,6 +16,7 @@ class RoomAdmin(admin.ModelAdmin):
     list_filter = ('room_type',)
     search_fields = ('number',)
     filter_horizontal = ('occupants',)
+    
 
     def current_occupancy(self, obj):
         return obj.occupants.count()

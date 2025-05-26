@@ -1,0 +1,95 @@
+<input type="file" id="pdfFile" accept="application/pdf" />
+<button onclick="uploadAndSignPdf()">🔏 Подпиать PDF</button>
+
+<script>
+  // ← Копируем твой сертификат
+  const certPEM = `-----BEGIN CERTIFICATE-----
+MIIEQTCCA6mgAwIBAgIUbtmcRiGBgy0AD2fM7b7lPrlKC0UwDgYKKoMOAwoBAQID
+AgUAMFgxSTBHBgNVBAMMQNKw0JvQotCi0KvSmiDQmtCj05jQm9CQ0J3QlNCr0KDQ
+o9Co0Ksg0J7QoNCi0JDQm9Cr0pogKEdPU1QpIDIwMjIxCzAJBgNVBAYTAktaMB4X
+DTI1MDUyMDIxNDg0NVoXDTI2MDUyMDIxNDg0NVoweTEgMB4GA1UEAwwX0KHTmNCa
+0JXQnSDQkNCb0JTQmNCv0KAxEzARBgNVBAQMCtCh05jQmtCV0J0xGDAWBgNVBAUT
+D0lJTjAzMDQwMTU1MDYyOTELMAkGA1UEBhMCS1oxGTAXBgNVBCoMENCR0JXQoNCG
+0JrSsNCb0KswgawwIwYJKoMOAwoBAQICMBYGCiqDDgMKAQECAgEGCCqDDgMKAQMD
+A4GEAASBgLnpQix5QUY4XxmdY2q428roJjByLj9iEeqYmccLjAKVKeNHHirNb6zs
+1dlrEfFNylGJT3mOzOkeZc2qLo/6KXlvn8l2Y7UVrYQvXDOZx5ZIaXWg2QPL2U9r
+KFe+PmJgPjFdYUM7QnxEh3V72ievvEWgv7gjNegHar2xr1Yv1qqqo4IB1jCCAdIw
+DgYDVR0PAQH/BAQDAgPIMCcGA1UdJQQgMB4GCCqDDgMDBAMCBggrBgEFBQcDBAYI
+KoMOAwMEAQEwOAYDVR0gBDEwLzAtBgYqgw4DAwIwIzAhBggrBgEFBQcCARYVaHR0
+cDovL3BraS5nb3Yua3ovY3BzMDgGA1UdHwQxMC8wLaAroCmGJ2h0dHA6Ly9jcmwu
+cGtpLmdvdi5rei9uY2FfZ29zdF8yMDIyLmNybDA6BgNVHS4EMzAxMC+gLaArhilo
+dHRwOi8vY3JsLnBraS5nb3Yua3ovbmNhX2RfZ29zdF8yMDIyLmNybDBoBggrBgEF
+BQcBAQRcMFowIgYIKwYBBQUHMAGGFmh0dHA6Ly9vY3NwLnBraS5nb3Yua3owNAYI
+KwYBBQUHMAKGKGh0dHA6Ly9wa2kuZ292Lmt6L2NlcnQvbmNhX2dvc3RfMjAyMi5j
+ZXIwJQYDVR0RBB4wHIEaYWxkaXlhci5zYWtlbjEyM0BnbWFpbC5jb20wHQYDVR0O
+BBYEFO7ZnEYhgYMtAA9nzO2+5T65SgtFMB8GA1UdIwQYMBaAFP4wvp/IkGM/H/9a
+PAywyF9MbRcIMBYGBiqDDgMDBQQMMAoGCCqDDgMDBQEBMA4GCiqDDgMKAQECAwIF
+AAOBgQBSjnkoVFnDnuqLeovL+m07nlYok7I31IEmuhmSPCeQKqB2ccjs5CYbGrPB
+X05MXc+fjDohxizOoqe0o5A/TSl2j3v8hLiEDwiNit4+4LtFSjbqlCHtml1Xt49g
+Xge1vCZdjtQhlimE9EWcRBWGF/Vd9Piq1mTGiqvgjEUEdyTI8w==
+-----END CERTIFICATE-----`;
+
+  function uploadAndSignPdf() {
+    const fileInput = document.getElementById("pdfFile");
+    if (!fileInput.files[0]) return alert("Выберите PDF-файл");
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Pdf = reader.result.split(",")[1];
+      signPdf(base64Pdf);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function signPdf(base64Pdf) {
+    const socket = new WebSocket("wss://127.0.0.1:13579/");
+    socket.onopen = () => {
+      const request = {
+        module: "kz.gov.pki.knca.basics",
+        method: "sign",
+        args: {
+          allowedStorages: ["PKCS12"],
+          format: "cms",
+          data: base64Pdf,
+          signingParams: {
+            decode: true,
+            encapsulate: true,
+            digested: false
+          },
+            signerParams: {
+            extKeyUsageOids: ["1.2.398.3.3.4.3.2"],  
+            chain: [certPEM]                         
+            }
+
+        }
+      };
+
+      socket.send(JSON.stringify(request));
+    };
+
+    socket.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+      if (response.status && response.body?.result) {
+        const pem = response.body.result[0];
+        downloadFile(pem, "signed_contract.p7s");
+      } else {
+        alert("❌ Подпись не удалась: " + JSON.stringify(response));
+      }
+    };
+
+    socket.onerror = () => {
+      alert("❌ NCALayer не отвечает. Убедитесь, что он запущен.");
+    };
+  }
+
+  function downloadFile(pemString, filename) {
+    const blob = new Blob([pemString], { type: "application/pkcs7-signature" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+</script>

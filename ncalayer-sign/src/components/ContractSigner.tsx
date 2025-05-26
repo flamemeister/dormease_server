@@ -1,96 +1,104 @@
 import { useState } from "react";
-import Client from "@seithq/ncalayer";
-
-// 🔧 Безопасная base64-кодировка для Unicode-строк (рус/каз символов)
-function base64EncodeUnicode(str: string): string {
-  return btoa(unescape(encodeURIComponent(str)));
-}
 
 export const ContractSigner = () => {
   const [status, setStatus] = useState("⌛ Ожидание...");
-  const [signature, setSignature] = useState<string | null>(null);
+  const [signedXml, setSignedXml] = useState<string | null>(null);
+  const [rawResponse, setRawResponse] = useState<string | null>(null); // 👈 для отладки
 
   const handleSign = () => {
     setStatus("🔌 Подключение к NCALayer...");
+    setSignedXml(null);
+    setRawResponse(null);
 
     const ws = new WebSocket("wss://127.0.0.1:13579/");
     ws.onopen = () => {
-      const client = new Client(ws);
+      const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <contract>
+    <studentName>Иванов Иван</studentName>
+    <text>Бұл келісімшартқа қол қою үшін XML құжаты</text>
+  </contract>
+</root>`;
 
-      // 👉 Текст для подписи
-      const plainText = "Бұл ЭЦП арқылы қол қоюға арналған тесттік мәтін";
-      const dataToSign = base64EncodeUnicode(plainText);
+      const request = {
+        module: "kz.gov.pki.knca.commonUtils",
+        method: "signXml",
+        args: [xmlData, "", "SIGNATURE"],
+      };
 
-      // 📂 Шаг 1 — выбрать P12-файл
-      client.browseKeyStore("PKCS12", "P12", "", (res1) => {
-        console.log("📂 browseKeyStore result:", res1);
+      ws.send(JSON.stringify(request));
+      setStatus("📤 XML отправлен на подписание...");
+    };
 
-        if (!res1.isOk()) {
-          setStatus("❌ Не удалось выбрать ключевой файл");
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("📩 Ответ от NCALayer:", data);
+        setRawResponse(JSON.stringify(data, null, 2));
+
+        if (data.errorCode) {
+          setStatus("❌ Подпись не удалась: " + data.errorCode);
           return;
         }
 
-        const storagePath = res1.getResult();
-        const password = prompt("🔐 Введите пароль от ключа") || "";
+        if (!data.result || typeof data.result !== "string") {
+          setStatus("❌ Получен пустой или некорректный результат.");
+          return;
+        }
 
-        const keyAlias = ""; // ⚠️ Пусть NCALayer сам подставит alias
-
-        setStatus("🔏 Подписание...");
-
-        // ✍️ Подписываем данные
-        client.signPlainData(
-          "PKCS12",
-          storagePath,
-          keyAlias,
-          password,
-          dataToSign,
-          (res2) => {
-            console.log("✍️ signPlainData result:", res2);
-
-            if (!res2.isOk()) {
-              console.error("❌ Ошибка при подписи:", res2.getErrorMessage?.() || res2);
-              setStatus("❌ Подпись не удалась. Возможно, неверный пароль или неподходящий ключ.");
-              return;
-            }
-
-            const sig = res2.getResult();
-            setSignature(sig);
-            setStatus("✅ Подпись успешно получена!");
-
-            // 👇 Пример отправки на сервер
-            /*
-            fetch("/api/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ data: dataToSign, signature: sig }),
-            });
-            */
-          }
-        );
-      });
+        setSignedXml(data.result);
+        setStatus("✅ Подпись получена успешно!");
+      } catch (e) {
+        setStatus("❌ Ошибка при обработке ответа.");
+        console.error("Ошибка парсинга:", e);
+      }
     };
 
     ws.onerror = () => {
-      setStatus("❌ NCALayer не отвечает. Убедитесь, что он запущен.");
+      setStatus("❌ Ошибка подключения к NCALayer.");
     };
   };
 
+  const handleDownload = () => {
+    if (!signedXml) return;
+    const blob = new Blob([signedXml], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "signed_contract.xml";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div style={{ padding: 20, maxWidth: 600 }}>
-      <h2>📑 Подписание строки через NCALayer</h2>
+    <div style={{ padding: 20, maxWidth: 800 }}>
+      <h2>📄 Подписание XML через NCALayer</h2>
       <p><strong>Статус:</strong> {status}</p>
       <button onClick={handleSign} style={{ padding: "0.5rem 1rem", marginTop: 10 }}>
-        🔏 Подписать строку
+        🔏 Подписать XML
       </button>
 
-      {signature && (
+      {signedXml && (
         <>
-          <p style={{ marginTop: 20 }}>📄 Подпись (base64):</p>
+          <p style={{ marginTop: 20 }}>📄 Подписанный XML:</p>
           <textarea
-            style={{ width: "100%", height: 160 }}
+            style={{ width: "100%", height: 300 }}
             readOnly
-            value={signature}
+            value={signedXml}
           />
+          <br />
+          <button onClick={handleDownload} style={{ padding: "0.5rem 1rem", marginTop: 10 }}>
+            📥 Скачать подписанный XML
+          </button>
+        </>
+      )}
+
+      {!signedXml && rawResponse && (
+        <>
+          <p style={{ marginTop: 20, color: "gray" }}>📜 Ответ от NCALayer:</p>
+          <pre style={{ backgroundColor: "#f5f5f5", padding: 10 }}>
+            {rawResponse}
+          </pre>
         </>
       )}
     </div>

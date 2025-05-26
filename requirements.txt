@@ -9,3 +9,11 @@ django-storages
 boto3
 Pillow
 weasyprint
+pyopenssl
+cryptography
+asn1crypto
+djangorestframework-simplejwt
+django-cors-headers
+channels
+redis==4.5.5
+channels_redis

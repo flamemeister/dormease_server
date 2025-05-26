@@ -28,10 +28,22 @@ from .utils import generate_contract_pdf
 from django.core.files import File
 import os
 
+from .cms_utils import verify_and_extract_info
+from .cms_utils import extract_signer_info
+
 from django.http import HttpResponse
 import base64
 from rest_framework.decorators import api_view
 from django.views.decorators.csrf import csrf_exempt
+from .pdf_generator import generate_contract_pdf
+
+from .verify_signature import verify_cms_signature
+from .cms_utils import extract_signer_info
+from django.template.loader import render_to_string
+from weasyprint import HTML
+
+import tempfile
+from datetime import date
 
 class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     queryset = DormitoryApplication.objects.all()
@@ -103,15 +115,21 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Комментарий обязателен.'}, status=400)
 
         application = get_object_or_404(DormitoryApplication, pk=pk)
+
         application.status = 'APPROVED'
         application.admin_comment = admin_comment
+        application.move_in_date = date.today()  
+
+
         pdf_path = generate_contract_pdf(application)
         with open(pdf_path, "rb") as f:
             application.pdf_contract.save(f"contract_{application.id}.pdf", File(f), save=True)
+
         application.save()
         os.remove(pdf_path)
-        application.save()
-        send_status_email.delay(application.student.email, 'APPROVED')
+
+        send_status_email.delay(application.student.email, 'APPROVED', application.id)
+
         return Response({'status': 'approved'})
 
 
@@ -233,10 +251,14 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='select-room')
     def select_room(self, request, pk=None):
         application = self.get_object()
+
         if application.student != request.user:
             return Response({'detail': 'Доступ только для заявителя.'}, status=403)
         if application.status != 'APPROVED':
             return Response({'detail': 'Комната доступна только после одобрения.'}, status=400)
+
+        if Room.objects.filter(occupants=request.user).exists():
+            return Response({'error': 'Вы уже заселены в комнату.'}, status=400)
 
         room_id = request.data.get('room_id')
         if not room_id:
@@ -244,9 +266,8 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         room = get_object_or_404(Room, id=room_id)
 
-        user_gender = application.gender
-        if room.gender_restriction != 'any' and room.gender_restriction != user_gender:
-            return Response({'error': f'Эта комната предназначена для другого пола: {room.get_gender_restriction_display()}.'}, status=400)
+        if room.gender_restriction != 'any' and room.gender_restriction != application.gender:
+            return Response({'error': 'Эта комната предназначена для другого пола.'}, status=400)
 
         if room.is_full():
             return Response({'error': 'Комната уже заполнена'}, status=400)
@@ -254,7 +275,10 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         application.room = room
         application.save()
 
-        return Response({'success': f'Вы выбрали комнату {room.number}. Ожидайте подтверждения.'})
+        room.occupants.add(request.user)
+
+        return Response({'success': f'Вы успешно заселены в комнату {room.number}.'})
+
 
     @swagger_auto_schema(
         operation_description="✅ Подтвердить выбор комнаты студентом (только админ)",
@@ -278,7 +302,9 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Комната уже заполнена'}, status=400)
         application.room = room
         application.save()
-        room.occupants.add(application.student)
+
+        room.occupants.add(application.student)  
+
         send_status_email.delay(application.student.email, 'ROOM_CONFIRMED')
         return Response({'success': f'Комната {room.number} успешно подтверждена.'})
 
@@ -316,17 +342,72 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="upload-signed")
     def upload_signed_contract(self, request, pk=None):
         app = get_object_or_404(DormitoryApplication, pk=pk)
-        signed_content = request.data.get("signed_content")
-        if not signed_content:
-            return Response({"error": "signed_content обязателен"}, status=400)
 
-        signed_bytes = base64.b64decode(signed_content)
-        with open(f"/tmp/signed_{app.id}.pdf", "wb") as f:
-            f.write(signed_bytes)
-        with open(f"/tmp/signed_{app.id}.pdf", "rb") as f:
-            app.signed_contract.save(f"signed_{app.id}.pdf", File(f), save=True)
+        signed_bytes = None
 
-        return Response({"status": "signed file saved"})
+        if "signed_content" in request.data:
+            import base64
+            signed_content = request.data.get("signed_content")
+            if not isinstance(signed_content, str):
+                return Response({"error": "signed_content должен быть строкой (base64)."}, status=400)
+            try:
+                signed_bytes = base64.b64decode(signed_content)
+            except Exception:
+                return Response({"error": "Ошибка при декодировании base64"}, status=400)
+
+        elif "signed_file" in request.FILES:
+            file = request.FILES["signed_file"]
+            signed_bytes = file.read()
+
+        else:
+            return Response({"error": "Передайте либо 'signed_content' (base64), либо 'signed_file' (файл .cms)"}, status=400)
+
+        if not app.pdf_contract:
+            return Response({"error": "PDF-договор не найден"}, status=404)
+
+        pdf_path = app.pdf_contract.path
+
+        if not verify_cms_signature(pdf_path, signed_bytes):
+            return Response({"error": "❌ Подпись недействительна или не соответствует файлу."}, status=400)
+
+        from django.core.files.base import ContentFile
+        app.signed_contract.save(f"signed_{app.id}.cms", ContentFile(signed_bytes), save=True)
+
+        signer_info = extract_signer_info(signed_bytes)
+        if signer_info:
+            from django.template.loader import render_to_string
+            from weasyprint import HTML
+            import os
+
+            html = render_to_string("contracts/signature_info.html", signer_info)
+            output_path = f"/tmp/contract_signed_info_{app.id}.pdf"
+            HTML(string=html).write_pdf(output_path)
+            with open(output_path, "rb") as f:
+                app.signed_contract_info_pdf.save(f"contract_signed_info_{app.id}.pdf", File(f), save=True)
+            os.remove(output_path)
+
+        app.contract_signed = True
+        app.save()
+        print("SIGNER INFO:", signer_info)
+
+        return Response({"status": "✅ Подпись успешно проверена и сохранена"})
+    
+    @action(detail=False, methods=["get"], url_path="signed")
+    def list_signed_contracts(self, request):
+        if request.user.role != 'admin':
+            return Response({"error": "Доступ запрещён"}, status=403)
+
+        signed_apps = DormitoryApplication.objects.filter(contract_signed=True).select_related("student")
+        data = [
+            {
+                "id": app.id,
+                "full_name": f"{app.student.first_name} {app.student.last_name}",
+                "signed_contract_url": app.signed_contract.url if app.signed_contract else None,
+                "signed_contract_info_pdf_url": app.signed_contract_info_pdf.url if app.signed_contract_info_pdf else None,
+            }
+            for app in signed_apps
+        ]
+        return Response(data)
 
 
 class RoomViewSet(viewsets.ReadOnlyModelViewSet):
@@ -393,7 +474,7 @@ class SupportMessageViewSet(viewsets.ModelViewSet):
 
     @swagger_auto_schema(
         method='post',
-        operation_description="📧 Ответить на обращение студента (только для роли Aitusa)",
+        operation_description="Ответить на обращение студента (только для роли Aitusa)",
         tags=["Aitusa Support"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,

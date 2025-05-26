@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from .storage_backends import MinioDocumentStorage
+from .storage_backends import MinioRoomImageStorage  
+from .storage_backends import MinioBuildingImageStorage
 
 class DormitoryApplication(models.Model):
     class Priority(models.IntegerChoices):
@@ -41,6 +43,16 @@ class DormitoryApplication(models.Model):
     admin_comment = models.TextField(blank=True, null=True)
     pdf_contract = models.FileField(upload_to="contracts/", null=True, blank=True)
     signed_contract = models.FileField(upload_to="signed_contracts/", null=True, blank=True)
+    signed_contract_info_pdf = models.FileField(upload_to="contracts/", null=True, blank=True)
+    move_in_date = models.DateField(null=True, blank=True)
+    room = models.ForeignKey(
+    'Room',
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name='applications'
+)
+    contract_signed = models.BooleanField(default=False) 
 
     def __str__(self):
         return f"{self.student.email} - {self.get_priority_display()}"
@@ -60,6 +72,12 @@ class Building(models.Model):
     name = models.CharField(max_length=100)
     address = models.CharField(max_length=255)
     floors = models.PositiveIntegerField()
+    image = models.ImageField(
+        upload_to="buildings/",
+        storage=MinioBuildingImageStorage(),
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return f"{self.name} ({self.address})"
@@ -80,6 +98,13 @@ class Room(models.Model):
     capacity = models.PositiveIntegerField(default=1)
     occupants = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='rooms')
     floor = models.IntegerField()
+    image = models.ImageField(
+        upload_to="rooms/",
+        storage=MinioRoomImageStorage(),
+        null=True,
+        blank=True
+    )
+    
 
     building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="rooms", null=False, blank=False)
 
@@ -92,6 +117,9 @@ class Room(models.Model):
     def is_full(self):
         return self.occupants.count() >= self.capacity
 
+    def occupied_count(self):
+        return self.occupants.count()
+    
     def __str__(self):
         return f"Room {self.number} ({self.room_type})"
     

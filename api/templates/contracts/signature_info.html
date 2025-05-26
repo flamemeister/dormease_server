@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: DejaVu Sans, sans-serif; margin: 40px; font-size: 14px; }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    .section { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="section">
+    <h2>Информация об ЭЦП-подписи</h2>
+    <p><strong>ФИО:</strong> {{ fio }}</p>
+    <p><strong>ИИН:</strong> {{ iin }}</p>
+    <p><strong>Серийный номер сертификата:</strong> {{ serial }}</p>
+    <p><strong>Срок действия:</strong> {{ valid_from }} — {{ valid_to }}</p>
+    <p><strong>Статус подписи:</strong> Успешно</p>
+  </div>
+</body>
+</html>
