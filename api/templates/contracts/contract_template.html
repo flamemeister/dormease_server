@@ -1,53 +1,162 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <style>
     body {
-      font-family: DejaVu Sans, sans-serif;
-      margin: 40px;
-      line-height: 1.6;
+      font-family: 'DejaVu Sans', sans-serif;
+      margin: 0;
+      padding: 40px;
+      background-color: #f9f9f9;
     }
+
+    .contract-container {
+      background-color: #fff;
+      padding: 40px;
+      max-width: 800px;
+      margin: auto;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .header {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .header img {
+      height: 80px;
+      margin-bottom: 8px;
+    }
+
+    .header span {
+      font-weight: bold;
+      font-size: 14px;
+      display: block;
+      text-align: right;
+    }
+
     h1 {
       text-align: center;
       font-size: 24px;
       margin-bottom: 40px;
+      text-transform: uppercase;
     }
+
+    h2 {
+      font-size: 18px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      color: #2c3e50;
+    }
+
     .section {
-      margin-bottom: 20px;
+      margin-bottom: 25px;
+      font-size: 15px;
+      color: #333;
     }
+
     .label {
       font-weight: bold;
     }
+
+    ul {
+      padding-left: 20px;
+      margin: 10px 0;
+    }
+
+    p {
+      margin: 6px 0;
+    }
+
+    .signatures {
+      margin-top: 40px;
+    }
+
+    .signatures p {
+      margin-bottom: 30px;
+    }
   </style>
 </head>
+
 <body>
 
-  <h1>Договор №{{ contract_id }}</h1>
+  <div class="contract-container">
+    <div class="header">
+      <div>
+        <img src="https://du.astanait.edu.kz/assets/logo.jpg" alt="University Logo">
+      </div>
+    </div>
 
-  <div class="section">
-    <p><span class="label">Студент:</span> {{ full_name }}</p>
-    <p><span class="label">ИИН:</span> {{ iin }}</p>
-    <p><span class="label">Email:</span> {{ email }}</p>
-    <p><span class="label">Город проживания:</span> {{ city }}</p>
-    <p><span class="label">Дата подачи заявки:</span> {{ submitted_date }}</p>
-  </div>
+    <h1>Contract №{{ contract_id }}</h1>
 
-  <div class="section">
-    <p>Настоящий договор регулирует условия проживания студента в общежитии Astana IT University.</p>
-    <p>Студент обязуется соблюдать правила внутреннего распорядка, обеспечивать сохранность имущества и соблюдать тишину.</p>
-    <p>Университет предоставляет студенту место проживания сроком на учебный год с возможностью продления по результатам рассмотрения.</p>
-  </div>
+    <div class="section">
+      <p><span class="label">Student:</span> {{ full_name }}</p>
+      <p><span class="label">IIN:</span> {{ iin }}</p>
+      <p><span class="label">Email:</span> {{ email }}</p>
+      <p><span class="label">City of Residence:</span> {{ city }}</p>
+      <p><span class="label">Application Submission Date:</span> {{ submitted_date }}</p>
+    </div>
 
-  <div class="section">
-    <p><span class="label">Дата составления договора:</span> {{ submitted_date }}</p>
-  </div>
+    <div class="section">
+      <h2>1. Subject of the Contract</h2>
+      <p>This contract defines the terms of accommodation for student {{ full_name }} at the Astana IT University
+        dormitory (hereinafter referred to as the “University”).</p>
+      <p>The University provides the student with a place in the dormitory for the duration of the academic year, with
+        the possibility of extension upon review.</p>
+    </div>
 
-  <div class="section">
-    <p>Подписи сторон:</p>
-    <p>_________________________ (Студент)</p>
-    <p>_________________________ (Представитель университета)</p>
+    <div class="section">
+      <h2>2. Rights and Obligations of the Parties</h2>
+      <p><strong>The University undertakes to:</strong></p>
+      <ul>
+        <li>Provide a furnished accommodation place;</li>
+        <li>Ensure proper sanitary and living conditions;</li>
+        <li>Inform the student of the dormitory rules.</li>
+      </ul>
+      <p><strong>The Student undertakes to:</strong></p>
+      <ul>
+        <li>Comply with internal rules and regulations of the dormitory;</li>
+        <li>Take good care of property and maintain order;</li>
+        <li>Make timely payments, if applicable;</li>
+        <li>Respect community rules, including quiet hours and cleanliness.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>3. Contract Term</h2>
+      <p>This contract enters into force from the date of application submission — {{ submitted_date }} — and is valid
+        until the end of the academic year. Extension is possible by mutual agreement of the parties.</p>
+    </div>
+
+    <div class="section">
+      <h2>4. Termination of the Contract</h2>
+      <p>The contract may be terminated early in the following cases:</p>
+      <ul>
+        <li>Expulsion of the student from the University;</li>
+        <li>Repeated violation of dormitory rules;</li>
+        <li>By mutual consent of both parties.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>5. Final Provisions</h2>
+      <p>This contract is made in two copies, one for each party. Both copies have equal legal force.</p>
+    </div>
+
+    <div class="section">
+      <p><span class="label">Date of Contract Signing:</span> {{ submitted_date }}</p>
+    </div>
+    <div class="section signatures">
+      <p><strong>Signatures of the Parties:</strong></p>
+      <p>_________________________ /{{ full_name }}/ (Student's Full Name)</p>
+      <p>_________________________ Khakimov A. (University Representative)</p>
+    </div>
   </div>
 
 </body>
+
 </html>

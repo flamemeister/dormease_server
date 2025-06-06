@@ -19,3 +19,4 @@ class MinioBuildingImageStorage(S3Boto3Storage):
     location = 'buildings/images'
     default_acl = 'public-read'
     file_overwrite = False
+

@@ -17,3 +17,7 @@ django-cors-headers
 channels
 redis==4.5.5
 channels_redis
+pykalkan
+pyHanko
+PyPDF2
+django-rest-passwordreset

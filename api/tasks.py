@@ -27,14 +27,13 @@ def send_status_email(self, to_email, status, application_id=None):
         )
         email.attach_alternative(html_content, "text/html")
 
-        # 📎 Если статус одобрен — прикладываем PDF-договор
         if status == "APPROVED" and application_id:
             try:
                 app = DormitoryApplication.objects.get(id=application_id)
                 if app.pdf_contract and os.path.exists(app.pdf_contract.path):
                     email.attach_file(app.pdf_contract.path)
             except DormitoryApplication.DoesNotExist:
-                pass  # можно залогировать
+                pass  
 
         email.send()
 

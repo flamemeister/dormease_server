@@ -15,12 +15,35 @@ class DormitoryApplicationSerializer(serializers.ModelSerializer):
     status_verbose = serializers.SerializerMethodField()
     first_name = serializers.CharField(source='student.first_name', read_only=True)
     last_name = serializers.CharField(source='student.last_name', read_only=True)
+    signer_full_name = serializers.CharField(read_only=True)
+    signer_iin = serializers.CharField(read_only=True)
+    signed_at = serializers.DateTimeField(read_only=True, format="%d.%m.%Y %H:%M")
+    identification_card = serializers.FileField(read_only=True)
+    city_proof_document = serializers.FileField(read_only=True)
+    benefit_proof_document = serializers.FileField(read_only=True)
 
     class Meta:
         model = DormitoryApplication
         fields = [
-            'id', 'first_name', 'last_name', 'iin', 'gender', 'city', 'document',
-            'priority', 'priority_verbose', 'status', 'status_verbose', 'created_at', 'move_in_date'
+            'id', 
+            'first_name', 
+            'last_name', 
+            'iin', 
+            'gender', 
+            'city', 
+            'document',
+            'priority', 
+            'priority_verbose', 
+            'status', 
+            'status_verbose', 
+            'created_at', 
+            'move_in_date', 
+            'signer_full_name',
+            'signer_iin', ''
+            'identification_card', 
+            'city_proof_document', 
+            'benefit_proof_document',
+            'signed_at',
         ]
         read_only_fields = ['status', 'created_at', 'student']
 

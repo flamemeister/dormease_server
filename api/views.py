@@ -4,9 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
-
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+from rest_framework.views import APIView
 
 from .models import DormitoryApplication, Room, SupportMessage
 from .serializers import DormitoryApplicationSerializer, RoomSerializer, SupportMessageSerializer
@@ -22,28 +20,31 @@ from django.db.models import Avg, F, ExpressionWrapper, DurationField, Count
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from datetime import timedelta
+from datetime import timedelta, date
 
 from .utils import generate_contract_pdf
 from django.core.files import File
 import os
 
 from .cms_utils import verify_and_extract_info
-from .cms_utils import extract_signer_info
 
-from django.http import HttpResponse
 import base64
-from rest_framework.decorators import api_view
 from django.views.decorators.csrf import csrf_exempt
 from .pdf_generator import generate_contract_pdf
 
 from .verify_signature import verify_cms_signature
 from .cms_utils import extract_signer_info
-from django.template.loader import render_to_string
-from weasyprint import HTML
 
-import tempfile
 from datetime import date
+from django.core.files.base import ContentFile
+from .pdf_signer import extract_signer_info, generate_signature_info_page, add_info_page_to_pdf, embed_cms_into_pdf, prepare_pdf_for_signature
+
+from django.shortcuts import render
+from asn1crypto import cms
+
+from .models import Building
+from .serializers import BuildingSerializer
+
 
 class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     queryset = DormitoryApplication.objects.all()
@@ -60,19 +61,18 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             type=openapi.TYPE_OBJECT,
             required=["iin", "gender", "city", "priority"],
             properties={
-                "iin": openapi.Schema(type=openapi.TYPE_STRING, description="ИИН (12 цифр)"),
+                "iin": openapi.Schema(type=openapi.TYPE_STRING),
                 "gender": openapi.Schema(type=openapi.TYPE_STRING, enum=["male", "female", "other"]),
-                "city": openapi.Schema(type=openapi.TYPE_STRING, description="Город проживания"),
-                "priority": openapi.Schema(
-                    type=openapi.TYPE_INTEGER,
-                    enum=[e.value for e in DormitoryApplication.Priority],
-                    description="Категория приоритета (1–7)"
-                ),
-                "document": openapi.Schema(type=openapi.TYPE_STRING, format="binary", description="PDF-документ (опционально)"),
+                "city": openapi.Schema(type=openapi.TYPE_STRING),
+                "priority": openapi.Schema(type=openapi.TYPE_INTEGER),
+                "identification_card": openapi.Schema(type=openapi.TYPE_STRING, format="binary"),
+                "city_proof_document": openapi.Schema(type=openapi.TYPE_STRING, format="binary"),
+                "benefit_proof_document": openapi.Schema(type=openapi.TYPE_STRING, format="binary"),
             }
         ),
         responses={201: openapi.Response("Заявка создана")}
     )
+
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
@@ -90,7 +90,15 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         ).exists()
         if active_exists:
             raise serializers.ValidationError("У вас уже есть активная заявка. Пожалуйста, дождитесь результата.")
-        serializer.save(student=user)
+        
+        instance = serializer.save(student=user)
+
+        for field in ['identification_card', 'city_proof_document', 'benefit_proof_document']:
+            if field in self.request.FILES:
+                setattr(instance, field, self.request.FILES[field])
+
+        instance.save()
+
 
 
     @swagger_auto_schema(
@@ -119,7 +127,6 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         application.status = 'APPROVED'
         application.admin_comment = admin_comment
         application.move_in_date = date.today()  
-
 
         pdf_path = generate_contract_pdf(application)
         with open(pdf_path, "rb") as f:
@@ -208,6 +215,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(apps, many=True)
         return Response(serializer.data)
 
+
     @swagger_auto_schema(
         method='post',
         tags=["Администрирование"],
@@ -235,6 +243,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         application.save()
         send_status_email.delay(application.student.email, new_status)
         return Response({'status': new_status})
+
 
     @swagger_auto_schema(
         method='post',
@@ -308,6 +317,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         send_status_email.delay(application.student.email, 'ROOM_CONFIRMED')
         return Response({'success': f'Комната {room.number} успешно подтверждена.'})
 
+
     @swagger_auto_schema(
         method='get',
         operation_description="👥 Получить список всех руммейтов текущего пользователя",
@@ -358,7 +368,6 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         elif "signed_file" in request.FILES:
             file = request.FILES["signed_file"]
             signed_bytes = file.read()
-
         else:
             return Response({"error": "Передайте либо 'signed_content' (base64), либо 'signed_file' (файл .cms)"}, status=400)
 
@@ -368,29 +377,34 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         pdf_path = app.pdf_contract.path
 
         if not verify_cms_signature(pdf_path, signed_bytes):
-            return Response({"error": "❌ Подпись недействительна или не соответствует файлу."}, status=400)
+            return Response({"error": "❌ Подпись недействительна."}, status=400)
 
-        from django.core.files.base import ContentFile
         app.signed_contract.save(f"signed_{app.id}.cms", ContentFile(signed_bytes), save=True)
 
-        signer_info = extract_signer_info(signed_bytes)
-        if signer_info:
-            from django.template.loader import render_to_string
-            from weasyprint import HTML
-            import os
+        from asn1crypto import cms
+        try:
+            cms_data = cms.ContentInfo.load(signed_bytes)
+            signer_cert = cms_data['content']['certificates'][0].chosen
+            subject = signer_cert.subject.native
 
-            html = render_to_string("contracts/signature_info.html", signer_info)
-            output_path = f"/tmp/contract_signed_info_{app.id}.pdf"
-            HTML(string=html).write_pdf(output_path)
-            with open(output_path, "rb") as f:
-                app.signed_contract_info_pdf.save(f"contract_signed_info_{app.id}.pdf", File(f), save=True)
-            os.remove(output_path)
+            full_name = subject.get("common_name")
+            iin = subject.get("serial_number")
+        except Exception as e:
+            return Response({"error": f"Ошибка при извлечении данных подписи: {str(e)}"}, status=500)
 
+        app.signer_full_name = full_name
+        app.signer_iin = iin
+        app.signed_at = now()
         app.contract_signed = True
         app.save()
-        print("SIGNER INFO:", signer_info)
 
-        return Response({"status": "✅ Подпись успешно проверена и сохранена"})
+        return Response({
+            "status": "✅ Подпись сохранена",
+            "signed_by": full_name,
+            "iin": iin,
+            "signed_at": app.signed_at.strftime('%d.%m.%Y %H:%M'),
+        })
+
     
     @action(detail=False, methods=["get"], url_path="signed")
     def list_signed_contracts(self, request):
@@ -407,6 +421,29 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             }
             for app in signed_apps
         ]
+        return Response(data)
+    
+    @action(detail=False, methods=["get"], url_path="contracts")
+    def list_all_contracts(self, request):
+        if request.user.role != 'admin':
+            return Response({"error": "Доступ запрещён"}, status=403)
+
+        apps = DormitoryApplication.objects.select_related("student")
+        data = []
+
+        for app in apps:
+            data.append({
+                "id": app.id,
+                "full_name": f"{app.student.first_name} {app.student.last_name}",
+                "email": app.student.email,
+                "status": app.get_status_display(),
+                "signed": app.contract_signed,
+                "signed_by": app.signer_full_name,
+                "signed_at": app.signed_at.strftime("%d.%m.%Y %H:%M") if app.signed_at else None,
+                "contract_url": app.pdf_contract.url if app.pdf_contract else None,
+                "signed_contract_url": app.signed_contract.url if app.signed_contract else None,
+            })
+
         return Response(data)
 
 
@@ -649,8 +686,6 @@ def aitusa_dashboard_metrics(request):
         "avg_response_minutes": avg_response_minutes
     })
 
-from .models import Building
-from .serializers import BuildingSerializer
 
 class BuildingViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Building.objects.all()
@@ -673,13 +708,45 @@ class BuildingViewSet(viewsets.ReadOnlyModelViewSet):
         return super().retrieve(request, *args, **kwargs)
         
 
-from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
+class UploadCMSView(APIView):
+    permission_classes = [IsAuthenticated]
 
-@csrf_exempt
-def sign_contract_view(request, app_id):
-    return render(request, "sign_contract.html", {
-        "app_id": app_id
-    })
+    def post(self, request, app_id):
+        try:
+            app = DormitoryApplication.objects.get(pk=app_id, student=request.user)
+        except DormitoryApplication.DoesNotExist:
+            return Response({"error": "Заявка не найдена"}, status=404)
 
+        if not app.pdf_contract:
+            return Response({"error": "PDF-документ не найден"}, status=404)
+
+        cms_b64 = request.data.get("cms")
+        if not cms_b64:
+            return Response({"error": "Отсутствует CMS"}, status=400)
+
+        try:
+            cms_bytes = base64.b64decode(cms_b64)
+        except Exception:
+            return Response({"error": "Невозможно декодировать CMS"}, status=400)
+
+        with app.pdf_contract.open("rb") as f:
+            original_pdf = f.read()
+
+        try:
+            signer_info = extract_signer_info(cms_bytes)
+            info_page = generate_signature_info_page(signer_info)
+            pdf_with_info = add_info_page_to_pdf(original_pdf, info_page)
+
+            prepared_pdf = prepare_pdf_for_signature(pdf_with_info)
+            final_pdf = embed_cms_into_pdf(prepared_pdf, cms_bytes)
+
+        except Exception as e:
+            return Response({"error": f"Ошибка при подписании: {str(e)}"}, status=500)
+
+
+        app.signed_pdf_contract.save(f"signed_contract_{app.id}.pdf", ContentFile(final_pdf))
+        app.contract_signed = True
+        app.save()
+
+        return Response({"status": "✅ Подпись встроена, подписант: " + signer_info['subject'].get('common_name', 'Неизвестно')})
 

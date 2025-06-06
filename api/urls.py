@@ -1,7 +1,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import DormitoryApplicationViewSet, RoomViewSet, SupportMessageViewSet, BuildingViewSet, admin_dashboard_metrics, aitusa_dashboard_metrics, sign_contract_view
+from .views import DormitoryApplicationViewSet, RoomViewSet, SupportMessageViewSet, BuildingViewSet, admin_dashboard_metrics, aitusa_dashboard_metrics, UploadCMSView
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -30,7 +30,7 @@ urlpatterns = [
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path("metrics/admin/", admin_dashboard_metrics),
     path("metrics/aitusa/", aitusa_dashboard_metrics),
-    path("sign-contract/<int:app_id>/", sign_contract_view, name="sign_contract"),
+    path("contracts/<int:app_id>/sign-cms/", UploadCMSView.as_view()),
 
 ]
 

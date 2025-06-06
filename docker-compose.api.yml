@@ -34,3 +34,8 @@ services:
     volumes:
       - ./minio_data:/data
 
+  # kalkan:
+  #   build: .
+  #   volumes:
+  #     - ./:/workspace
+  #   tty: true

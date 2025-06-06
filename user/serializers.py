@@ -4,13 +4,13 @@ from .models import *
 from api.models import Room  # импортируй Room
 
 class UserSerializer(serializers.ModelSerializer):
+    is_profile_completed = serializers.SerializerMethodField()
     move_in_date = serializers.SerializerMethodField()
     group = serializers.SerializerMethodField()
     room_number = serializers.SerializerMethodField()
     building_name = serializers.SerializerMethodField()
     course = serializers.SerializerMethodField()
-    building = serializers.SerializerMethodField()  
-
+    building = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -18,9 +18,26 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'role', 'is_active',
             'is_staff', 'gender', 'last_login', 'move_in_date',
             'group', 'room_number', 'building_name', 'course', 'building',
-            'is_superuser', 'groups', 'user_permissions'
+            'is_superuser', 'groups', 'user_permissions', 'is_profile_completed'
         ]
         extra_kwargs = {'password': {'write_only': True}}
+        read_only_fields = ['is_profile_completed']
+
+    def get_is_profile_completed(self, obj):
+        try:
+            return obj.profile.is_profile_completed
+        except UserProfile.DoesNotExist:
+            return False
+
+
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+
+        if instance.age and instance.course and instance.group:
+            instance.is_profile_completed = True
+            instance.save(update_fields=["is_profile_completed"])
+
+        return instance
     
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
@@ -97,7 +114,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-
         token['role'] = user.role
+
+        try:
+            token['profile_completed'] = user.profile.is_profile_completed
+        except UserProfile.DoesNotExist:
+            token['profile_completed'] = False
 
         return token

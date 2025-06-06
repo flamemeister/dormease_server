@@ -41,17 +41,53 @@ class DormitoryApplication(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     admin_comment = models.TextField(blank=True, null=True)
-    pdf_contract = models.FileField(upload_to="contracts/", null=True, blank=True)
-    signed_contract = models.FileField(upload_to="signed_contracts/", null=True, blank=True)
-    signed_contract_info_pdf = models.FileField(upload_to="contracts/", null=True, blank=True)
+    pdf_contract = models.FileField(
+        storage=MinioDocumentStorage(),
+        upload_to="contracts/",
+        null=True,
+        blank=True
+    )    
+    signed_contract = models.FileField(
+        storage=MinioDocumentStorage(),
+        upload_to="signed_contracts/",
+        null=True,
+        blank=True
+    )
+    signed_contract_info_pdf = models.FileField(
+    storage=MinioDocumentStorage(),
+    upload_to="contracts/",
+    null=True,
+    blank=True
+    )
+    contract_signed = models.BooleanField(default=False)
     move_in_date = models.DateField(null=True, blank=True)
+    signer_full_name = models.CharField(max_length=255, null=True, blank=True)
+    signer_iin = models.CharField(max_length=20, null=True, blank=True)
+    signed_at = models.DateTimeField(null=True, blank=True)
     room = models.ForeignKey(
     'Room',
     on_delete=models.SET_NULL,
     null=True,
     blank=True,
     related_name='applications'
-)
+    )
+    identification_card = models.FileField(
+    storage=MinioDocumentStorage(),
+    upload_to='applications/identification_cards/',
+    null=True, blank=True
+    )
+
+    city_proof_document = models.FileField(
+        storage=MinioDocumentStorage(),
+        upload_to='applications/city_proof/',
+        null=True, blank=True
+    )
+
+    benefit_proof_document = models.FileField(
+        storage=MinioDocumentStorage(),
+        upload_to='applications/benefit_proof/',
+        null=True, blank=True
+    )
     contract_signed = models.BooleanField(default=False) 
 
     def __str__(self):
