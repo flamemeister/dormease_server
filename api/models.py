@@ -6,18 +6,18 @@ from .storage_backends import MinioBuildingImageStorage
 
 class DormitoryApplication(models.Model):
     class Priority(models.IntegerChoices):
-        ORPHANS_DISABLED = 1, 'Дети-сироты, инвалиды 1/2 гр.'
-        FAMILY_DISABLED = 2, 'Инвалиды 3 гр., родители-инвалиды'
-        SERPIN = 3, 'Серпін 2050'
-        ALTYNBELGI_OLYMPIAD = 4, 'Алтын белгі, олимпиады'
-        HIGH_ENT = 5, 'Высокие баллы ЕНТ/КТ'
-        HIGH_GRADES = 6, 'Успевающие студенты'
-        OTHER = 7, 'Иные, включая иностранцев'
+        ORPHANS_DISABLED = 1, 'Orphans, disabled 1/2 groups.'
+        FAMILY_DISABLED = 2, 'Disabled 3 group, parents with disabilities'
+        SERPIN = 3, 'Serpin 2050'
+        ALTYNBELGI_OLYMPIAD = 4, 'Altyn Belgi, olympiads'
+        HIGH_ENT = 5, 'High UNT/CT scores'
+        HIGH_GRADES = 6, 'Successful students'
+        OTHER = 7, 'Others, including foreigners'
 
     GENDER_CHOICES = [
-        ('male', 'Мужской'),
-        ('female', 'Женский'),
-        ('other', 'Другое'),
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
     ]
 
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='applications')
@@ -125,8 +125,8 @@ class Room(models.Model):
     ]
 
     GENDER_CHOICES = [
-        ('male', 'Только мальчики'),
-        ('female', 'Только девочки'),
+        ('male', 'Boys only'),
+        ('female', 'Girls only'),
     ]
 
     number = models.CharField(max_length=10)

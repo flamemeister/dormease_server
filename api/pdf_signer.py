@@ -3,14 +3,12 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from asn1crypto import cms
 
-from pypdf import PdfReader, PdfWriter  # только pypdf!
+from pypdf import PdfReader, PdfWriter  
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign.signers.cms_embedder import PdfCMSEmbedder, SigObjSetup, SigIOSetup
 from pyhanko.sign.signers.pdf_byterange import SignatureObject
 
-from pypdf import PdfReader, PdfWriter  # <== ОБЯЗАТЕЛЬНО ТАК
-
-from pypdf import PdfReader, PdfWriter  # <== ОБЯЗАТЕЛЬНО ТАК
+from pypdf import PdfReader, PdfWriter  
 
 from io import BytesIO
 

@@ -21,3 +21,5 @@ pykalkan
 pyHanko
 PyPDF2
 django-rest-passwordreset
+django-otp 
+qrcode

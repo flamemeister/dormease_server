@@ -45,6 +45,15 @@ from asn1crypto import cms
 from .models import Building
 from .serializers import BuildingSerializer
 
+from django.core.files.base import ContentFile
+from django.utils.timezone import now
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework import status
+from asn1crypto import cms
+import base64
+
+from .verify_signature import verify_cms_signature  
 
 class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     queryset = DormitoryApplication.objects.all()
@@ -55,7 +64,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     search_fields = ['student__email']
 
     @swagger_auto_schema(
-        operation_description="📥 Студент подаёт заявку на проживание в общежитии",
+        operation_description="Студент подаёт заявку на проживание в общежитии",
         tags=["Пользователь"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -89,7 +98,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             status__in=['PENDING', 'APPROVED']
         ).exists()
         if active_exists:
-            raise serializers.ValidationError("У вас уже есть активная заявка. Пожалуйста, дождитесь результата.")
+            raise serializers.ValidationError("You already have active application. Please wait for the result")
         
         instance = serializer.save(student=user)
 
@@ -100,9 +109,8 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         instance.save()
 
 
-
     @swagger_auto_schema(
-        operation_description="✅ Одобрить заявку (только для администратора)",
+        operation_description="Одобрить заявку (только для администратора)",
         tags=["Администрирование"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -116,11 +124,11 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='approve')
     def approve_application(self, request, pk=None):
         if request.user.role != 'admin':
-            return Response({'detail': 'Доступ только для администратора.'}, status=403)
+            return Response({'detail': 'Only administrator has access'}, status=403)
 
         admin_comment = request.data.get("admin_comment", "").strip()
         if not admin_comment:
-            return Response({'error': 'Комментарий обязателен.'}, status=400)
+            return Response({'error': 'Comment is mandatory.'}, status=400)
 
         application = get_object_or_404(DormitoryApplication, pk=pk)
 
@@ -141,7 +149,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
 
     @swagger_auto_schema(
-        operation_description="❌ Отклонить заявку (только для администратора)",
+        operation_description="Отклонить заявку (только для администратора)",
         tags=["Администрирование"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -155,11 +163,11 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='reject')
     def reject_application(self, request, pk=None):
         if request.user.role != 'admin':
-            return Response({'detail': 'Доступ только для администратора.'}, status=403)
+            return Response({'detail': 'Only administrator has access.'}, status=403)
 
         admin_comment = request.data.get("admin_comment", "").strip()
         if not admin_comment:
-            return Response({'error': 'Комментарий обязателен.'}, status=400)
+            return Response({'error': 'Comment is mandatory.'}, status=400)
 
         application = get_object_or_404(DormitoryApplication, pk=pk)
         application.status = 'REJECTED'
@@ -170,7 +178,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
 
     @swagger_auto_schema(
-        operation_description="⛔ Отменить заявку (студент или админ)",
+        operation_description="Отменить заявку (студент или админ)",
         tags=["Пользователь", "Администрирование"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -179,7 +187,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
                 'admin_comment': openapi.Schema(type=openapi.TYPE_STRING, description='Причина отмены (обязательно для админа)')
             }
         ),
-        responses={200: openapi.Response("Заявка отменена")}
+        responses={200: openapi.Response("Application is canceled")}
     )
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel_application(self, request, pk=None):
@@ -194,7 +202,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         elif request.user.role == 'admin':
             admin_comment = request.data.get("admin_comment", "").strip()
             if not admin_comment:
-                return Response({'error': 'Комментарий обязателен для администратора.'}, status=400)
+                return Response({'error': 'Comment is mandatory for administrator.'}, status=400)
 
             application.status = 'CANCELED'
             application.admin_comment = admin_comment
@@ -202,11 +210,11 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             send_status_email.delay(application.student.email, 'CANCELED')
             return Response({'status': 'canceled'})
 
-        return Response({'detail': 'Нет доступа.'}, status=403)
+        return Response({'detail': 'No access.'}, status=403)
 
     @swagger_auto_schema(
         method='get',
-        operation_description="📄 Посмотреть мои заявки",
+        operation_description="Посмотреть мои заявки",
         tags=["Моя заявка"]
     )
     @action(detail=False, methods=['get'], url_path='my')
@@ -219,7 +227,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         method='post',
         tags=["Администрирование"],
-        operation_description="✏️ Обновить статус заявки вручную (только админ)",
+        operation_description="Обновить статус заявки вручную (только админ)",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             required=['status'],
@@ -233,11 +241,11 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='force-update')
     def force_update_status(self, request, pk=None):
         if request.user.role != 'admin':
-            return Response({'detail': 'Только для администратора.'}, status=403)
+            return Response({'detail': 'Only for administrator.'}, status=403)
         application = self.get_object()
         new_status = request.data.get('status')
         if new_status not in dict(application._meta.get_field('status').choices):
-            return Response({'error': 'Недопустимый статус'}, status=400)
+            return Response({'error': 'Inacceptable status'}, status=400)
         application.status = new_status
         application.admin_comment = request.data.get('admin_comment', '')
         application.save()
@@ -248,7 +256,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         method='post',
         tags=["Пользователь"],
-        operation_description="🏠 Студент выбирает комнату после одобрения заявки",
+        operation_description="Студент выбирает комнату после одобрения заявки",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
@@ -262,35 +270,35 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         application = self.get_object()
 
         if application.student != request.user:
-            return Response({'detail': 'Доступ только для заявителя.'}, status=403)
+            return Response({'detail': 'Access only for application sender.'}, status=403)
         if application.status != 'APPROVED':
-            return Response({'detail': 'Комната доступна только после одобрения.'}, status=400)
+            return Response({'detail': 'Room is available oly after approval.'}, status=400)
 
         if Room.objects.filter(occupants=request.user).exists():
-            return Response({'error': 'Вы уже заселены в комнату.'}, status=400)
+            return Response({'error': 'You are already settled.'}, status=400)
 
         room_id = request.data.get('room_id')
         if not room_id:
-            return Response({'error': 'room_id обязателен'}, status=400)
+            return Response({'error': 'room_id is mandatory'}, status=400)
 
         room = get_object_or_404(Room, id=room_id)
 
         if room.gender_restriction != 'any' and room.gender_restriction != application.gender:
-            return Response({'error': 'Эта комната предназначена для другого пола.'}, status=400)
+            return Response({'error': 'This room is for another gender.'}, status=400)
 
         if room.is_full():
-            return Response({'error': 'Комната уже заполнена'}, status=400)
+            return Response({'error': 'This room is already full'}, status=400)
 
         application.room = room
         application.save()
 
         room.occupants.add(request.user)
 
-        return Response({'success': f'Вы успешно заселены в комнату {room.number}.'})
+        return Response({'success': f'You are successfully settled to {room.number}.'})
 
 
     @swagger_auto_schema(
-        operation_description="✅ Подтвердить выбор комнаты студентом (только админ)",
+        operation_description="Подтвердить выбор комнаты студентом (только админ)",
         tags=["Администрирование"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -304,23 +312,23 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='approve-room')
     def approve_room_selection(self, request, pk=None):
         if request.user.role != 'admin':
-            return Response({'detail': 'Только админ может подтвердить выбор комнаты.'}, status=403)
+            return Response({'detail': 'Only admin can approve the room selection'}, status=403)
         application = self.get_object()
         room = get_object_or_404(Room, id=request.data.get('room_id'))
         if room.is_full():
-            return Response({'error': 'Комната уже заполнена'}, status=400)
+            return Response({'error': 'room is already full'}, status=400)
         application.room = room
         application.save()
 
         room.occupants.add(application.student)  
 
         send_status_email.delay(application.student.email, 'ROOM_CONFIRMED')
-        return Response({'success': f'Комната {room.number} успешно подтверждена.'})
+        return Response({'success': f'Room {room.number} successfully confirmed.'})
 
 
     @swagger_auto_schema(
         method='get',
-        operation_description="👥 Получить список всех руммейтов текущего пользователя",
+        operation_description="Получить список всех руммейтов текущего пользователя",
         tags=["Общие"]
     )
     @action(detail=False, methods=['get'], url_path='my-roommate')
@@ -329,11 +337,11 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         room = Room.objects.filter(occupants=user).first()
         if not room:
-            return Response({'detail': 'Вы не прикреплены ни к одной комнате.'}, status=404)
+            return Response({'detail': 'You are not attached to any room.'}, status=404)
 
         roommates = room.occupants.exclude(id=user.id)
         if not roommates.exists():
-            return Response({'detail': 'У вас пока нет руммейтов.'}, status=404)
+            return Response({'detail': 'You do not have a roommate yet.'}, status=404)
 
         serializer = UserProfileSerializer([r.profile for r in roommates], many=True)
         return Response(serializer.data)
@@ -342,7 +350,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     def get_contract_base64(self, request, pk=None):
         app = get_object_or_404(DormitoryApplication, pk=pk)
         if not app.pdf_contract:
-            return Response({"error": "Файл договора не найден"}, status=404)
+            return Response({"error": "Contract document is not found"}, status=404)
 
         with app.pdf_contract.open("rb") as f:
             encoded = base64.b64encode(f.read()).decode()
@@ -354,17 +362,14 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         app = get_object_or_404(DormitoryApplication, pk=pk)
 
         signed_bytes = None
-
         if "signed_content" in request.data:
-            import base64
             signed_content = request.data.get("signed_content")
             if not isinstance(signed_content, str):
-                return Response({"error": "signed_content должен быть строкой (base64)."}, status=400)
+                return Response({"error": "signed_content must be a string (base64)."}, status=400)
             try:
                 signed_bytes = base64.b64decode(signed_content)
             except Exception:
-                return Response({"error": "Ошибка при декодировании base64"}, status=400)
-
+                return Response({"error": "Error in decoding base64"}, status=400)
         elif "signed_file" in request.FILES:
             file = request.FILES["signed_file"]
             signed_bytes = file.read()
@@ -372,16 +377,19 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             return Response({"error": "Передайте либо 'signed_content' (base64), либо 'signed_file' (файл .cms)"}, status=400)
 
         if not app.pdf_contract:
-            return Response({"error": "PDF-договор не найден"}, status=404)
+            return Response({"error": "PDF-contract is not found"}, status=404)
 
-        pdf_path = app.pdf_contract.path
+        try:
+            with app.pdf_contract.open("rb") as f:
+                original_pdf = f.read()
+        except Exception as e:
+            return Response({"error": f"Error reading the PDF: {str(e)}"}, status=500)
 
-        if not verify_cms_signature(pdf_path, signed_bytes):
-            return Response({"error": "❌ Подпись недействительна."}, status=400)
+        if not verify_cms_signature(original_pdf, signed_bytes):  
+            return Response({"error": "Signature is not actual."}, status=400)
 
         app.signed_contract.save(f"signed_{app.id}.cms", ContentFile(signed_bytes), save=True)
 
-        from asn1crypto import cms
         try:
             cms_data = cms.ContentInfo.load(signed_bytes)
             signer_cert = cms_data['content']['certificates'][0].chosen
@@ -399,13 +407,13 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         app.save()
 
         return Response({
-            "status": "✅ Подпись сохранена",
+            "status": " Подпись сохранена",
             "signed_by": full_name,
             "iin": iin,
             "signed_at": app.signed_at.strftime('%d.%m.%Y %H:%M'),
         })
 
-    
+
     @action(detail=False, methods=["get"], url_path="signed")
     def list_signed_contracts(self, request):
         if request.user.role != 'admin':
@@ -598,8 +606,11 @@ def admin_dashboard_metrics(request):
     rejected = DormitoryApplication.objects.filter(status='REJECTED').count()
     canceled = DormitoryApplication.objects.filter(status='CANCELED').count()
     expired = DormitoryApplication.objects.filter(status='EXPIRED').count()
+    from django.contrib.auth import get_user_model
 
-    total_students = DormitoryApplication.objects.values('student').distinct().count()
+    User = get_user_model()
+
+    total_students = User.objects.filter(role="user").count()
     total_rooms = Room.objects.count()
     occupied_rooms = Room.objects.filter(occupants__isnull=False).distinct().count()
     full_rooms = sum([1 for r in Room.objects.all() if r.is_full()])
@@ -748,5 +759,5 @@ class UploadCMSView(APIView):
         app.contract_signed = True
         app.save()
 
-        return Response({"status": "✅ Подпись встроена, подписант: " + signer_info['subject'].get('common_name', 'Неизвестно')})
+        return Response({"status": " Подпись встроена, подписант: " + signer_info['subject'].get('common_name', 'Неизвестно')})
 

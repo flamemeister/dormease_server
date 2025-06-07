@@ -68,12 +68,13 @@ class RoomSerializer(serializers.ModelSerializer):
     is_full = serializers.SerializerMethodField()
     building_name = serializers.SerializerMethodField()
     occupied_count = serializers.SerializerMethodField()
+    occupants = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
         fields = [
             'id', 'number', 'room_type', 'capacity', 'is_full', 'occupied_count',
-            'floor', 'building', 'building_name', 'gender_restriction', 'image'
+            'floor', 'building', 'building_name', 'gender_restriction', 'image', 'occupants'
         ]
 
     def get_is_full(self, obj):
@@ -84,7 +85,9 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def get_building_name(self, obj):
         return obj.building.name if obj.building else None
-
+    
+    def get_occupants(self, obj):
+        return list(obj.occupants.values_list('id', flat=True))  
 
 class SupportMessageSerializer(serializers.ModelSerializer):
     student_full_name = serializers.SerializerMethodField()

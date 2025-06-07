@@ -1,4 +1,3 @@
-# user/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import User, UserProfile
@@ -18,7 +17,7 @@ from django.conf import settings
 @receiver(reset_password_token_created)
 def password_reset_token_created(sender, instance, reset_password_token, **kwargs):
     context = {
-        'reset_url': f"https://localhost:3000/reset-password?token={reset_password_token.key}&email={reset_password_token.user.email}",
+        'reset_url': f"http://localhost:3000/reset-password?token={reset_password_token.key}&email={reset_password_token.user.email}",
         'user': reset_password_token.user,
     }
 

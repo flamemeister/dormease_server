@@ -5,13 +5,14 @@ from django.template.loader import render_to_string
 import os
 
 STATUS_MESSAGES = {
-    "PENDING": "Ваша заявка отправлена и ожидает рассмотрения.",
-    "APPROVED": "Ваша заявка на общежитие одобрена. Во вложении вы найдёте PDF-договор. Пожалуйста, подпишите его через EzSigner и загрузите обратно.",
-    "REJECTED": "К сожалению, ваша заявка была отклонена.",
-    "CANCELED": "Вы отменили свою заявку.",
-    "EXPIRED": "Срок действия заявки истёк.",
-    "ROOM_CONFIRMED": "Администратор подтвердил выбранную вами комнату. Добро пожаловать!",
+    "PENDING": "Your application has been submitted and is awaiting review.",
+    "APPROVED": "Your dormitory application has been approved. A PDF contract is attached. Please sign it via EzSigner and upload it back.",
+    "REJECTED": "Unfortunately, your application has been rejected.",
+    "CANCELED": "You have canceled your application.",
+    "EXPIRED": "The application has expired.",
+    "ROOM_CONFIRMED": "The administrator has confirmed the room you selected. Welcome!",
 }
+
 
 @shared_task(bind=True, max_retries=3)
 def send_status_email(self, to_email, status, application_id=None):
@@ -30,10 +31,11 @@ def send_status_email(self, to_email, status, application_id=None):
         if status == "APPROVED" and application_id:
             try:
                 app = DormitoryApplication.objects.get(id=application_id)
-                if app.pdf_contract and os.path.exists(app.pdf_contract.path):
-                    email.attach_file(app.pdf_contract.path)
+                if app.pdf_contract and app.pdf_contract.storage.exists(app.pdf_contract.name):
+                    with app.pdf_contract.open('rb') as f:
+                        email.attach(f"contract_{app.id}.pdf", f.read(), "application/pdf")
             except DormitoryApplication.DoesNotExist:
-                pass  
+                pass
 
         email.send()
 

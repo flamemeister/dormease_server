@@ -1,7 +1,30 @@
 from rest_framework import serializers
 from api.models import DormitoryApplication
 from .models import *
-from api.models import Room  # импортируй Room
+from api.models import Room  
+from django.contrib.auth.password_validation import validate_password
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class BasicUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name']
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    user = BasicUserSerializer(read_only=True)
+    profile_image = serializers.ImageField(required=False)
+
+    class Meta:
+        model = UserProfile
+        fields = [
+            'user',
+            'age',
+            'bio',
+            'course',
+            'group',
+            'roommate_preferences',
+            'profile_image',
+        ]
 
 class UserSerializer(serializers.ModelSerializer):
     is_profile_completed = serializers.SerializerMethodField()
@@ -11,6 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
     building_name = serializers.SerializerMethodField()
     course = serializers.SerializerMethodField()
     building = serializers.SerializerMethodField()
+    profile = UserProfileSerializer(read_only=True)
 
     class Meta:
         model = User
@@ -18,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'role', 'is_active',
             'is_staff', 'gender', 'last_login', 'move_in_date',
             'group', 'room_number', 'building_name', 'course', 'building',
-            'is_superuser', 'groups', 'user_permissions', 'is_profile_completed'
+            'is_superuser', 'groups', 'user_permissions', 'is_profile_completed', 'profile'
         ]
         extra_kwargs = {'password': {'write_only': True}}
         read_only_fields = ['is_profile_completed']
@@ -28,7 +52,6 @@ class UserSerializer(serializers.ModelSerializer):
             return obj.profile.is_profile_completed
         except UserProfile.DoesNotExist:
             return False
-
 
     def update(self, instance, validated_data):
         instance = super().update(instance, validated_data)
@@ -74,30 +97,6 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
 
-class BasicUserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name']
-
-class UserProfileSerializer(serializers.ModelSerializer):
-    user = BasicUserSerializer(read_only=True)
-    profile_image = serializers.ImageField(required=False)
-
-    class Meta:
-        model = UserProfile
-        fields = [
-            'user',
-            'age',
-            'bio',
-            'course',
-            'group',
-            'roommate_preferences',
-            'profile_image',
-        ]
-
-from rest_framework import serializers
-from django.contrib.auth.password_validation import validate_password
-
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True, validators=[validate_password])
@@ -108,8 +107,6 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
         return attrs
     
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):

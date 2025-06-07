@@ -27,9 +27,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     GENDER_CHOICES = (
-        ('male', 'Мужской'),
-        ('female', 'Женский'),
-        ('other', 'Другое'),
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Others'),
     )
 
     email = models.EmailField(unique=True)

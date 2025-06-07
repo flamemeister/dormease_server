@@ -16,4 +16,4 @@ object_name = 'test/requirements.txt'  # или 'requirements.txt'
 
 s3.upload_file(file_path, bucket_name, object_name)
 
-print(f"✅ Uploaded to http://localhost:9000/{bucket_name}/{object_name}")
+print(f" Uploaded to http://localhost:9000/{bucket_name}/{object_name}")
