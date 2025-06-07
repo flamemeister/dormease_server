@@ -1,7 +1,6 @@
 from weasyprint import HTML
 from django.template.loader import render_to_string
 from datetime import datetime
-import os
 
 def generate_contract_pdf(application):
     student = application.student

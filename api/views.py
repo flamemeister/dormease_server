@@ -26,18 +26,13 @@ from .utils import generate_contract_pdf
 from django.core.files import File
 import os
 
-from .cms_utils import verify_and_extract_info
-
 import base64
 from django.views.decorators.csrf import csrf_exempt
 from .pdf_generator import generate_contract_pdf
 
 from .verify_signature import verify_cms_signature
-from .cms_utils import extract_signer_info
 
-from datetime import date
 from django.core.files.base import ContentFile
-from .pdf_signer import extract_signer_info, generate_signature_info_page, add_info_page_to_pdf, embed_cms_into_pdf, prepare_pdf_for_signature
 
 from django.shortcuts import render
 from asn1crypto import cms
@@ -45,15 +40,6 @@ from asn1crypto import cms
 from .models import Building
 from .serializers import BuildingSerializer
 
-from django.core.files.base import ContentFile
-from django.utils.timezone import now
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from rest_framework import status
-from asn1crypto import cms
-import base64
-
-from .verify_signature import verify_cms_signature  
 
 class DormitoryApplicationViewSet(viewsets.ModelViewSet):
     queryset = DormitoryApplication.objects.all()
@@ -108,6 +94,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         instance.save()
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         operation_description="Одобрить заявку (только для администратора)",
@@ -147,6 +134,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         return Response({'status': 'approved'})
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         operation_description="Отклонить заявку (только для администратора)",
@@ -176,6 +164,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         send_status_email.delay(application.student.email, 'REJECTED')
         return Response({'status': 'rejected'})
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         operation_description="Отменить заявку (студент или админ)",
@@ -212,6 +201,8 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         return Response({'detail': 'No access.'}, status=403)
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
     @swagger_auto_schema(
         method='get',
         operation_description="Посмотреть мои заявки",
@@ -223,6 +214,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(apps, many=True)
         return Response(serializer.data)
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         method='post',
@@ -252,6 +244,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         send_status_email.delay(application.student.email, new_status)
         return Response({'status': new_status})
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         method='post',
@@ -296,6 +289,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         return Response({'success': f'You are successfully settled to {room.number}.'})
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         operation_description="Подтвердить выбор комнаты студентом (только админ)",
@@ -325,6 +319,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         send_status_email.delay(application.student.email, 'ROOM_CONFIRMED')
         return Response({'success': f'Room {room.number} successfully confirmed.'})
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         method='get',
@@ -346,6 +341,8 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         serializer = UserProfileSerializer([r.profile for r in roommates], many=True)
         return Response(serializer.data)
     
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
     @action(detail=True, methods=["get"], url_path="contract-base64")
     def get_contract_base64(self, request, pk=None):
         app = get_object_or_404(DormitoryApplication, pk=pk)
@@ -356,6 +353,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             encoded = base64.b64encode(f.read()).decode()
         return Response({"base64": encoded})
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @action(detail=True, methods=["post"], url_path="upload-signed")
     def upload_signed_contract(self, request, pk=None):
@@ -413,6 +411,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
             "signed_at": app.signed_at.strftime('%d.%m.%Y %H:%M'),
         })
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @action(detail=False, methods=["get"], url_path="signed")
     def list_signed_contracts(self, request):
@@ -431,6 +430,8 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
         ]
         return Response(data)
     
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
     @action(detail=False, methods=["get"], url_path="contracts")
     def list_all_contracts(self, request):
         if request.user.role != 'admin':
@@ -454,6 +455,7 @@ class DormitoryApplicationViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 class RoomViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Room.objects.all()
@@ -501,6 +503,8 @@ class RoomViewSet(viewsets.ReadOnlyModelViewSet):
             })
 
         return Response(data)
+    
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 class SupportMessageViewSet(viewsets.ModelViewSet):
     queryset = SupportMessage.objects.all().order_by('-created_at')
@@ -516,6 +520,7 @@ class SupportMessageViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(student=self.request.user)
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @swagger_auto_schema(
         method='post',
@@ -649,6 +654,8 @@ def admin_dashboard_metrics(request):
         }
     })
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
 @swagger_auto_schema(
     method='get',
     tags=["📨 Метрики Aitusa"],
@@ -697,6 +704,7 @@ def aitusa_dashboard_metrics(request):
         "avg_response_minutes": avg_response_minutes
     })
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 class BuildingViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Building.objects.all()
@@ -718,46 +726,3 @@ class BuildingViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
         
-
-class UploadCMSView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, app_id):
-        try:
-            app = DormitoryApplication.objects.get(pk=app_id, student=request.user)
-        except DormitoryApplication.DoesNotExist:
-            return Response({"error": "Заявка не найдена"}, status=404)
-
-        if not app.pdf_contract:
-            return Response({"error": "PDF-документ не найден"}, status=404)
-
-        cms_b64 = request.data.get("cms")
-        if not cms_b64:
-            return Response({"error": "Отсутствует CMS"}, status=400)
-
-        try:
-            cms_bytes = base64.b64decode(cms_b64)
-        except Exception:
-            return Response({"error": "Невозможно декодировать CMS"}, status=400)
-
-        with app.pdf_contract.open("rb") as f:
-            original_pdf = f.read()
-
-        try:
-            signer_info = extract_signer_info(cms_bytes)
-            info_page = generate_signature_info_page(signer_info)
-            pdf_with_info = add_info_page_to_pdf(original_pdf, info_page)
-
-            prepared_pdf = prepare_pdf_for_signature(pdf_with_info)
-            final_pdf = embed_cms_into_pdf(prepared_pdf, cms_bytes)
-
-        except Exception as e:
-            return Response({"error": f"Ошибка при подписании: {str(e)}"}, status=500)
-
-
-        app.signed_pdf_contract.save(f"signed_contract_{app.id}.pdf", ContentFile(final_pdf))
-        app.contract_signed = True
-        app.save()
-
-        return Response({"status": " Подпись встроена, подписант: " + signer_info['subject'].get('common_name', 'Неизвестно')})
-

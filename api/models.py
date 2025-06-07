@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+
 from .storage_backends import MinioDocumentStorage
 from .storage_backends import MinioRoomImageStorage  
 from .storage_backends import MinioBuildingImageStorage

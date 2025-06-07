@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import DormitoryApplication, Room, SupportMessage
 
-
 STATUS_TRANSLATIONS = {
     'PENDING': 'Ожидает рассмотрения',
     'APPROVED': 'Одобрено',

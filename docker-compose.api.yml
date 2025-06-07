@@ -33,9 +33,3 @@ services:
     command: server --console-address ":9001" /data
     volumes:
       - ./minio_data:/data
-
-  # kalkan:
-  #   build: .
-  #   volumes:
-  #     - ./:/workspace
-  #   tty: true

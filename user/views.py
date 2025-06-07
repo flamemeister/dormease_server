@@ -1,10 +1,9 @@
-# REST
 from rest_framework import viewsets
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -22,14 +21,6 @@ from django.contrib.auth import authenticate
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import TwoFactorCode, TrustedDevice, User, EmailVerificationCode
-
-from .models import EmailVerificationToken
-from django.conf import settings
-from django.core.mail import send_mail
-
-from rest_framework.permissions import AllowAny
-from rest_framework.decorators import api_view, permission_classes
 
 class UserRegistrationAPIView(APIView):
     def post(self, request):
@@ -93,6 +84,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
       return User.objects.none()  
 
+
 class UserAPIView(APIView):
   queryset = User.objects.all()
   serializer_class = UserSerializer
@@ -110,7 +102,8 @@ class UserAPIView(APIView):
     serializer = UserSerializer(user)
 
     return Response(serializer.data, status=status.HTTP_200_OK)
-  
+
+
 class UserProfileAPIView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
@@ -217,11 +210,6 @@ def verify_2fa_code(request):
     })
 
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny
-
 class VerifyEmailTokenView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []  
@@ -241,4 +229,3 @@ class VerifyEmailTokenView(APIView):
         token_obj.save()
 
         return Response({"message": "Почта успешно подтверждена!"}, status=status.HTTP_200_OK)
-

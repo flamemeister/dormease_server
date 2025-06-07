@@ -5,10 +5,12 @@ from api.models import Room
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+
 class BasicUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name']
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
     user = BasicUserSerializer(read_only=True)
@@ -25,6 +27,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'roommate_preferences',
             'profile_image',
         ]
+
 
 class UserSerializer(serializers.ModelSerializer):
     is_profile_completed = serializers.SerializerMethodField()
@@ -87,6 +90,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_building(self, obj):
         room = Room.objects.filter(occupants=obj).select_related('building').first()
         return room.building.name if room and room.building else None
+    
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -96,6 +100,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
+    
 
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
@@ -106,6 +111,7 @@ class ChangePasswordSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['confirm_new_password']:
             raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
         return attrs
+    
     
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod

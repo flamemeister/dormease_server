@@ -1,9 +1,19 @@
 import os
 import django
+import json
+
+from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
+
 from django.core.asgi import get_asgi_application
+
 from api.routing import websocket_urlpatterns
+
+from channels.generic.websocket import AsyncWebsocketConsumer
+
+from .models import Room
+from .serializers import RoomSerializer
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
@@ -14,11 +24,6 @@ application = ProtocolTypeRouter({
         URLRouter(websocket_urlpatterns)
     ),
 })
-
-import json
-from channels.generic.websocket import AsyncWebsocketConsumer
-from .models import Room
-from .serializers import RoomSerializer
 
 class RoomConsumer(AsyncWebsocketConsumer):
     async def connect(self):

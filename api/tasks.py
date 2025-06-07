@@ -1,7 +1,10 @@
 from celery import shared_task
+
 from .models import NotificationLog, DormitoryApplication
+
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+
 import os
 
 STATUS_MESSAGES = {
