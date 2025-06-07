@@ -57,7 +57,12 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'corsheaders.middleware.CorsMiddleware',
+    'django_otp.middleware.OTPMiddleware',
+]
 
+INSTALLED_APPS += [
+    'django_otp',
+    'django_otp.plugins.otp_totp',
 ]
 
 ROOT_URLCONF = "core.urls"

@@ -36,7 +36,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     role = models.CharField(max_length=10, choices=ROLES, default='user')
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=False, blank=False, default='female')
 
@@ -81,3 +81,57 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f'Профиль: {self.user.first_name} {self.user.last_name}'
+
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+import random
+
+class TwoFactorCode(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timezone.timedelta(minutes=5)
+
+    @staticmethod
+    def generate_code():
+        return str(random.randint(100000, 999999))
+
+
+class TrustedDevice(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    def matches(self, ip, ua):
+        return self.ip_address == ip and self.user_agent == ua
+
+
+class EmailVerificationCode(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timezone.timedelta(minutes=10)
+
+    @staticmethod
+    def generate_code():
+        return str(random.randint(100000, 999999))
+
+import uuid
+
+class EmailVerificationToken(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timezone.timedelta(days=1)
