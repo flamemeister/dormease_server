@@ -200,7 +200,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'aldiyar.saken123@gmail.com'
 EMAIL_HOST_PASSWORD = 'nxic lmua ntjn gxmd'
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = 'amqp://guest:guest@rabbitmq:5672//'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
@@ -222,7 +222,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("localhost", 6379)],
+            "hosts": [("redis", 6379)]
         },
     },
 }
@@ -235,7 +235,7 @@ AWS_ACCESS_KEY_ID = 'minioadmin'
 AWS_SECRET_ACCESS_KEY = 'minioadmin123'
 AWS_STORAGE_BUCKET_NAME = 'dormitory-files'
 
-AWS_S3_ENDPOINT_URL = 'http://localhost:9000'
+AWS_S3_ENDPOINT_URL = 'http://minio:9000'
 AWS_S3_FILE_OVERWRITE = False
 AWS_S3_ADDRESSING_STYLE = "path"
 AWS_QUERYSTRING_AUTH = False

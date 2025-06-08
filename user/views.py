@@ -32,7 +32,7 @@ class UserRegistrationAPIView(APIView):
 
             token_obj = EmailVerificationToken.objects.create(user=user)
 
-            verify_url = f"http://localhost:3000/verify-email?token={token_obj.token}"
+            verify_url = f"http://localhost:3000/user/verify-email?token={token_obj.token}"
 
             send_mail(
                 subject="Подтверждение почты",
@@ -164,10 +164,16 @@ def request_2fa_code(request):
     trusted = TrustedDevice.objects.filter(user=user)
     if any(device.matches(ip, ua) for device in trusted):
         refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+
+        access['role'] = user.role
+        access['profile_completed'] = getattr(user.profile, 'is_profile_completed', False)
+
         return Response({
             "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "access": str(access),
         })
+
 
     code = TwoFactorCode.generate_code()
     TwoFactorCode.objects.create(user=user, code=code)
@@ -204,22 +210,38 @@ def verify_2fa_code(request):
     TrustedDevice.objects.get_or_create(user=user, ip_address=ip, user_agent=ua)
 
     refresh = RefreshToken.for_user(user)
+    access = refresh.access_token
+
+    access['role'] = user.role  # 👈 обязательно
+    access['profile_completed'] = getattr(user.profile, 'is_profile_completed', False)
+    print("✅ user.role:", user.role)
+
     return Response({
         "refresh": str(refresh),
-        "access": str(refresh.access_token),
+        "access": str(access),
+        
     })
 
 
 class VerifyEmailTokenView(APIView):
     permission_classes = [AllowAny]
-    authentication_classes = []  
+    authentication_classes = []
 
     def get(self, request):
         token = request.query_params.get("token")
 
-        token_obj = EmailVerificationToken.objects.filter(token=token, is_used=False).first()
-        if not token_obj or token_obj.is_expired():
-            return Response({"error": "Ссылка недействительна или истекла"}, status=status.HTTP_400_BAD_REQUEST)
+        if not token:
+            return Response({"error": "Token is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        token_obj = EmailVerificationToken.objects.filter(token=token).first()
+        if not token_obj:
+            return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if token_obj.is_used:
+            return Response({"message": "Email already verified."}, status=status.HTTP_200_OK)
+
+        if token_obj.is_expired():
+            return Response({"error": "This link has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = token_obj.user
         user.is_active = True
@@ -228,4 +250,5 @@ class VerifyEmailTokenView(APIView):
         token_obj.is_used = True
         token_obj.save()
 
-        return Response({"message": "Почта успешно подтверждена!"}, status=status.HTTP_200_OK)
+        return Response({"message": "Email verified successfully!"}, status=status.HTTP_200_OK)
+

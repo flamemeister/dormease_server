@@ -33,3 +33,46 @@ services:
     command: server --console-address ":9001" /data
     volumes:
       - ./minio_data:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"     
+      - "15672:15672"   
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./dormease_server
+      dockerfile: Dockerfile
+    container_name: django_backend
+    command: python3 manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./dormease_server:/app  
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - rabbitmq
+      - minio
+    restart: unless-stopped
+
+
+  frontend:
+    build:
+      context: ./dormease-front/dormease
+      dockerfile: Dockerfile
+    container_name: react_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  minio_data:
